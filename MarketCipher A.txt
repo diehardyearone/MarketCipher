@@ -1,0 +1,210 @@
+//@version=6
+indicator(title='Cipher A', shorttitle='Cipher A', overlay=true)
+
+// WaveTrend
+wtChannelLen = 10
+wtAverageLen = 20
+wtMASource = ohlc4
+wtMALen = 5
+
+// WaveTrend Overbought & Oversold lines
+obLevel = 55
+obLevel2 = 60
+obLevel3 = 95
+osLevel = -55
+osLevel2 = -60
+osLevel3 = -95
+
+// EMA Ribbon
+show_b1 = input(true, 'Ribbon1')
+show_b2 = input(true, 'Ribbon2')
+show_b3 = input(true, 'Ribbon3')
+show_b4 = input(true, 'Ribbon4')
+show_b5 = input(true, 'Ribbon5')
+show_b6 = input(true, 'Ribbon6')
+show_b7 = input(true, 'Ribbon7')
+show_b8 = input(true, 'Ribbon8')
+show_b9 = input(true, 'Ribbon9')
+ema1Len = input(5, title = "Ribbon1")
+ema2Len = input(10, title = "Ribbon2")
+ema3Len = input(20, title = "Ribbon3")
+ema4Len = input(40, title = "Ribbon4")
+ema5Len = input(50, title = "Ribbon5")
+ema6Len = input(60, title = "Ribbon6")
+ema7Len = input(80, title = "Ribbon7")
+ema8Len = input(100, title = "Ribbon8")
+ema9Len = input(140, title = "Ribbon9")
+maType = input.string(title='MA Settings', defval='EMA', options=['ALMA', 'EMA', 'HMA', 'SMA', 'VWMA', 'WMA', 'MCGINLEY'], inline="MA")
+maTf = input.timeframe(title='', defval='', inline="MA")
+show_ma20 = input(false, 'MA 20')
+show_ma50 = input(false, 'MA 50')
+show_ma100 = input(false, 'MA 100')
+show_ma200 = input(true, 'MA 200')
+show_ma800 = input(false, 'MA 800')
+show_vwap = input(false, 'VWAP')
+show_w = input(false, 'Weekly level')
+show_m = input(false, 'Monthly level')
+
+w=request.security(syminfo.tickerid, "W", close)
+m=request.security(syminfo.tickerid, "M", close)
+wh=request.security(syminfo.tickerid, "W", high)
+mh=request.security(syminfo.tickerid, "M", high)
+wl=request.security(syminfo.tickerid, "W", low)
+ml=request.security(syminfo.tickerid, "M", low)
+
+// RSI
+rsiSRC = close
+rsiLen = 20
+rsiOversold = 30
+rsiOverbought = 60
+
+// RSI+MFI
+rsiMFIperiod = 60
+rsiMFIMultiplier = 200
+
+// Custom Functions
+f_mtf(val) =>
+    request.security(syminfo.tickerid, maTf, val)
+
+// WaveTrend
+f_wavetrend(_src, _chlen, _avg, _malen) =>
+    _esa = ta.ema(_src, _chlen)
+    _de = ta.ema(math.abs(_src - _esa), _chlen)
+    _ci = (_src - _esa) / (0.015 * _de)
+    _tci = ta.ema(_ci, _avg)
+    _wt1 = _tci
+    _wt2 = ta.sma(_wt1, _malen)
+    [_wt1, _wt2]
+
+
+smma(src,len)=>
+    xsma = ta.sma(src, len)
+    smma = 0.0
+    smma := na(smma[1]) ? xsma : (smma[1] * (len - 1) + src) / len
+    smma
+
+f_ma(type, p) =>
+    b = 0.0
+    if type == 'EMA'
+        b := ta.ema(close, p)
+        b
+    else if type == 'ALMA'
+        b := ta.alma(close, p, 0.85, 6)
+        b
+    else if type == 'HMA'
+        b := ta.hma(close, p)
+        b
+    else if type == 'SMA'
+        b := ta.sma(close, p)
+        b
+    else if type == 'WMA'
+        b := ta.wma(close, p)
+        b
+    else if type == 'VWMA'
+        b := ta.vwma(close, p)
+        b
+    else if type == 'MCGINLEY'
+        b := na(b[1]) ? ta.ema(close, p) : b[1] + (close - b[1]) / (p * math.pow(close/b[1], 4))
+        b
+    b
+
+f_emaRibbon(_e1, _e2, _e3, _e4, _e5, _e6, _e7, _e8, _e9) =>
+    _ema1 = f_ma("EMA", _e1)
+    _ema2 = f_ma("EMA", _e2)
+    _ema3 = f_ma("EMA", _e3)
+    _ema4 = f_ma("EMA", _e4)
+    _ema5 = f_ma("EMA", _e5)
+    _ema6 = f_ma("EMA", _e6)
+    _ema7 = f_ma("EMA", _e7)
+    _ema8 = f_ma("EMA", _e8)
+    _ema9 = f_ma("EMA", _e9)    
+    [_ema1, _ema2, _ema3, _ema4, _ema5, _ema6, _ema7, _ema8, _ema9]
+
+f_rsimfi(_period, _multiplier, _tf) =>
+    mf = ta.sma((close - open) / (high - low) * _multiplier, _period) - 2.5
+    smma(mf,4)
+
+// EMA Ribbon
+[ema1, ema2, ema3, ema4, ema5, ema6, ema7, ema8, ema9] = f_emaRibbon(ema1Len, ema2Len, ema3Len, ema4Len, ema5Len, ema6Len, ema7Len, ema8Len, ema9Len)
+ema20=f_mtf(f_ma(maType, 20) )
+ema50=f_mtf(f_ma(maType, 50) )
+ema100=f_mtf(f_ma(maType, 100) )
+ema200=f_mtf(f_ma(maType, 200) )
+ema800=f_mtf(f_ma(maType, 800) )
+
+// RSI 
+rsi = ta.rsi(rsiSRC, rsiLen)
+
+// Calculates WaveTrend
+[wt1, wt2] = f_wavetrend(wtMASource, wtChannelLen, wtAverageLen, wtMALen)
+
+// WaveTrend Conditions
+wtOverSold = wt2 <= osLevel
+wtOverBought = wt2 >= obLevel
+wtCross = ta.cross(wt1, wt2)
+wtCrossUp = wt2 - wt1 <= 0
+wtCrossDown = wt2 - wt1 >= 0
+
+// RSI + MFI
+rsiMFI = f_rsimfi(rsiMFIperiod, rsiMFIMultiplier, timeframe.period)
+
+// Signals
+ema12cross = ta.crossover(ema1, ema2)
+longEma = ta.crossover(ema2, ema8)
+redCross = ta.crossunder(ema1, ema2)
+blueTriangle = ta.crossover(ema1, ema6)
+greenDot = wtCross and wtCrossUp and ema12cross
+redDiamond = wtCross and wtCrossDown
+yellowCross = redDiamond and wt2 < -45 and wt2 > osLevel3 and rsi < 50 and rsi > 15 and rsiMFI < -5
+bloodDiamond = redDiamond and redCross
+bullCandle = open > ema2 and open > ema8 and close[1] > open[1] and close > open and not redDiamond and not redCross
+shortEma = ta.crossover(ema8, ema2)
+
+// EMA Ribbon
+ribbonDir = ema8 < ema2
+colorEma = ribbonDir ? color.rgb(76, 175, 80, 10) : color.rgb(250, 82, 82, 10)
+colorGray = color.rgb(80, 86, 98, 10)
+p1 = plot(show_b1 ? ema1 : na, color=ribbonDir ? color.rgb(25, 100, 200, 10) : colorGray, linewidth=2, title='EMA(5)')
+p2 = plot(show_b2 ? ema2 : na, color=ribbonDir ? color.rgb(50, 125, 250, 10) : colorGray, linewidth=2, title='EMA(10)')
+p3 = plot(show_b3 ? ema3 : na, color=ribbonDir ? color.rgb(75, 150, 250, 10) : colorGray, linewidth=2, title='EMA(20)')
+p4 = plot(show_b4 ? ema4 : na, color=ribbonDir ? color.rgb(100, 175, 250, 10) : colorGray, linewidth=2, title='EMA(40)')
+p5 = plot(show_b5 ? ema5 : na, color=ribbonDir ? color.rgb(125, 200, 250, 10) : colorGray, linewidth=2, title='EMA(50)')
+p6 = plot(show_b6 ? ema6 : na, color=ribbonDir ? color.rgb(150, 225, 250, 10) : colorGray, linewidth=2, title='EMA(60)')
+p7 = plot(show_b7 ? ema7 : na, color=ribbonDir ? color.rgb(175, 250, 250, 10) : colorGray, linewidth=2, title='EMA(80)')
+p8 = plot(show_b8 ? ema8 : na, color=ribbonDir ? color.rgb(200, 250, 250, 10) : colorGray, linewidth=2, title='EMA(100)')
+p9 = plot(show_b9 ? ema9 : na, color=ribbonDir ? color.rgb(225, 250, 250, 10) : colorGray, linewidth=2, title='EMA(140)')
+fill(p1, p2, color=color.rgb(125, 175, 250, 90))
+fill(p1, p8, color=color.rgb(175, 225, 250, 90))
+plot(show_ma20 ? ema20: na, color=color.rgb(250, 250, 250, 10), title='MA 20')
+plot(show_ma50 ? ema50: na, color=color.rgb(0, 175, 225, 10), title='MA 50')
+plot(show_ma100 ? ema100: na, color=color.rgb(250, 150, 0, 10), title='MA 100')
+plot(show_ma200 ? ema200: na, color=close>ema200?color.rgb(0, 225, 125, 10) : color.rgb(250, 82, 82, 10), title='MA 200')
+plot(show_ma800 ? ema800: na, color=color.rgb(150, 50, 175, 10), title='MA 800')
+plot(show_vwap ? ta.vwap: na, color=color.rgb(250, 250, 250, 10), title='VWAP')
+plot(show_w ? w[1]: na, color=color.rgb(150, 50, 175, 10), title='Weekly', trackprice=true, linewidth=2)
+plot(show_w ? wl[1]: na, color=color.rgb(150, 50, 175, 10), title='Weekly', trackprice=true, linewidth=2)
+plot(show_w ? wh[1]: na, color=color.rgb(150, 50, 175, 10), title='Weekly', trackprice=true, linewidth=2)
+plot(show_m ? m[1]: na, color=color.rgb(250, 75, 75, 10), title='Monthly', trackprice=true, linewidth=2)
+plot(show_m ? ml[1]: na, color=color.rgb(250, 75, 75, 10), title='Monthly', trackprice=true, linewidth=2)
+plot(show_m ? mh[1]: na, color=color.rgb(250, 75, 75, 10), title='Monthly', trackprice=true, linewidth=2)
+
+// SHAPES
+plotshape(greenDot, style=shape.circle, color=color.rgb(0, 250, 0, 25), location=location.abovebar, size=size.tiny, title='Long')
+plotshape(longEma, style=shape.circle, color=color.rgb(0, 250, 0, 25), location=location.abovebar, size=size.tiny, title='Long EMA Signal')
+plotshape(shortEma, style=shape.circle, color=color.rgb(250, 0, 0, 50), location=location.abovebar, size=size.tiny, title='Short EMA Signal')
+plotshape(redCross, style=shape.xcross, color=color.rgb(250, 0, 0, 25), location=location.abovebar, size=size.tiny, title='Red cross')
+plotshape(blueTriangle, style=shape.triangleup, color=color.rgb(75, 100, 250, 25), location=location.abovebar, size=size.small, title='Blue Triangle')
+plotshape(redDiamond, style=shape.diamond, color=color.rgb(250, 0, 0, 25), location=location.abovebar, size=size.tiny, title="Red Diamond")
+plotshape(bullCandle, style=shape.diamond, color=color.rgb(250, 250, 0, 25), location=location.abovebar, size=size.tiny, title="Bull candle")
+plotshape(bloodDiamond, style=shape.diamond, color=color.rgb(250, 0, 0, 25), location=location.abovebar, size=size.small, title='Blood Diamond')
+plotshape(yellowCross, style=shape.xcross, color=color.rgb(250, 225, 50, 25), location=location.abovebar, size=size.small, title='Yellow Cross')
+
+// ALERTS 
+alertcondition(redDiamond, 'Red Diamond', 'Red Diamond')
+alertcondition(bloodDiamond, 'Blood Diamond', 'Blood Diamond')
+alertcondition(yellowCross, 'YellowX', 'YellowX')
+alertcondition(redCross, 'RedX', 'RedX')
+alertcondition(ta.cross(close, ta.ema(close, 50)), 'EMA 50 Cross', 'EMA 50 Cross')
+alertcondition(ta.cross(close, ta.ema(close, 200)), 'EMA 200 Cross', 'EMA 200 Cross')
+
+// NOTE: This is NOT EXACTLY SAME as Market Cipher A by CryptoFace. If you actually wanna use the GENUINE version of it. Please purchase from https://marketciphertrading.com/
