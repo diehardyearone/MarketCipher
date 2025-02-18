@@ -1,0 +1,151 @@
+//@version=6
+indicator(title='Cipher B', shorttitle='Cipher B')
+
+// Input - Feature Switches
+wtShow = input(true, title='Show Waves')
+Showvwap = input(true, title='Show Fast Waves')
+rsiMFIShow = input(true, title='Show MFI Waves')
+mfiColorBarsShow = input(true, title='Show MFI Color Bars') 
+wtDotsShow = input(true, title='Show Wave Trend Circle Marks')
+bsDotsShow = input(true, title='Show Strong Buy/Sell Circle Marks')
+rsiShow = input(true, title='Show RSIs Lines')
+levelsGuideShow = input(true, title='Show Over-Buy/Sell Guide Lines')
+ 
+// Input - RSI Setting
+rsiSRC = input(close, title = '_rsiSRC')
+rsiLen = input(20, title = '_rsiLen')
+rsiOverSold = input(30, title = '_rsiOverSold')
+rsiOverBought = input(60, title = '_rsiOverBought')
+rsiMFIperiod = input(60, title = '_rsiMFIperiod')
+rsiMFIMultiplier = input(200, title = '_rsiMFIMultiplier')
+rsiMFIPosY = input(2.5, title = '_rsiMFIPosY')
+wtChannelLen = input(5, title = '_wtChannelLen')
+wtAverageLen = input(20, title = '_wtAverageLen')
+wtMASource = input(ohlc4, title = '_wtMASource')
+wtMALen = input(3, title = '_wtMALen')
+
+obLevel1 = 55
+obLevel2 = 60
+obLevel3 = 95
+osLevel1 = -55
+osLevel2 = -60
+osLevel3 = -95
+ 
+// Colors
+colorRed = color.rgb(250, 0, 0, 10)
+colorPurple = color.rgb(225, 0, 225, 10)
+colorGreen = color.rgb(50, 250, 0, 10)
+colorOrange = color.rgb(225, 150, 0, 10)
+colorYellow = color.rgb(250, 235, 59, 10)
+colorWhite = color.rgb(250, 250, 250, 10)
+colorPink = color.rgb(250, 0, 225, 10)
+colorBluelight = color.rgb(50, 200, 250, 10)
+colorWT1 = color.rgb(150, 200, 250, 10)
+colorWT2 = color.rgb(25, 75, 150, 10)
+colorNone = color.rgb(255, 255, 255, 100)
+    
+smma(src,len)=>
+    xsma = ta.sma(src, len)
+    smma = 0.0
+    smma := na(smma[1]) ? xsma : (smma[1] * (len - 1) + src) / len
+    smma
+    
+
+f_rsimfi(_period, _multiplier) => 
+    mf = ta.sma(((close - open) / (high - low)) * _multiplier, _period) - rsiMFIPosY
+    smma(mf, 4)
+    
+// WaveTrend
+f_wavetrend(src, chlen, avg, malen) =>
+    tfsrc = src
+    esa = ta.ema(tfsrc, chlen)
+    de = ta.ema(math.abs(tfsrc - esa), chlen)
+    ci = (tfsrc - esa) / (0.015 * de)
+    wtf1 = ta.ema(ci, avg)
+    wtf2 = ta.sma(wtf1, malen)
+    wt1 = wtf1
+    wt2 = wtf2
+    wtVwap = wt1 - wt2
+    wtOversold = wt1 <= -60 and wt2 <= -60
+    wtOverbought = wt2 >= 60 and wt1 >= 60
+    wtCross = ta.cross(wt1, wt2)
+    wtCrossUp = wt2 - wt1 <= 0
+    wtCrossDown = wt2 - wt1 >= 0
+    wtCrosslast = ta.cross(wt1[2], wt2[2])
+    wtCrossUplast = wt2[2] - wt1[2] <= 0
+    wtCrossDownlast = wt2[2] - wt1[2] >= 0
+    [wt1, wt2, wtOversold, wtOverbought, wtCross, wtCrossUp, wtCrossDown, wtCrosslast, wtCrossUplast, wtCrossDownlast, wtVwap]
+ 
+// Stochastic RSI
+f_stochrsi(_src, _stochlen, _rsilen, _smoothk, _smoothd, _log, _avg) =>
+    src = _log ? math.log(_src) : _src
+    rsi = ta.rsi(src, _rsilen)
+    kk = ta.sma(ta.stoch(rsi, rsi, rsi, _stochlen), _smoothk)
+    d1 = ta.sma(kk, _smoothd)
+    avg_1 = math.avg(kk, d1)
+    k = _avg ? avg_1 : kk
+    [k, d1]
+ 
+// RSI
+rsi =ta.rsi(rsiSRC, rsiLen)
+newRSI = ta.sma(ta.stoch(close, high, low, 40), 2)
+rsiColor = rsi <= rsiOverSold ? colorGreen : rsi >= rsiOverBought ? colorRed : colorPurple
+ 
+// RSI + MFI Area
+rsiMFI = f_rsimfi(rsiMFIperiod, rsiMFIMultiplier)
+rsiMFIColor = rsiMFI > 0 ? color.rgb(50, 250, 0, 50) : color.rgb(250, 25, 0, 50)
+ 
+// Calculates WaveTrend
+[wt1, wt2, wtOversold, wtOverbought, wtCross, wtCrossUp, wtCrossDown, wtCross_last, wtCrossUp_last, wtCrossDown_last, wtVwap] = f_wavetrend(wtMASource, wtChannelLen, wtAverageLen, wtMALen)
+ 
+// Stochastic RSI
+SRSI_k_Fast = ta.sma(ta.stoch(close, high, low, 81), 2)
+newStochColor = SRSI_k_Fast < newRSI ? colorGreen : SRSI_k_Fast >= newRSI ? colorRed : colorPurple
+ 
+// Small Circles WT Cross
+signalColor = wt2 - wt1 > 0 ? color.rgb(250, 75, 75) : color.rgb(0, 225, 125)
+ 
+// Buy signal.
+buySignal = wtCross and wtCrossUp and wtOversold
+ 
+// Sell signal
+sellSignal = wtCross and wtCrossDown and wtOverbought
+ 
+ 
+// WT Areas
+plot(wtShow ? wt1 : na, style=plot.style_area, title='WT Wave 1', color=colorWT1)
+plot(wtShow ? wt2 : na, style=plot.style_area, title='WT Wave 2', color=colorWT2)
+ 
+// MFI BAR
+rsiMfiBarTopLine = plot(mfiColorBarsShow ? -90 : na, title='MFI Bar TOP Line', color = colorNone)
+rsiMfiBarBottomLine = plot(mfiColorBarsShow ? -100 : na, title='MFI Bar BOTTOM Line', color = colorNone)
+fill(rsiMfiBarTopLine, rsiMfiBarBottomLine, title='MFI Bar Colors', color=rsiMFIColor)
+ 
+// VWAP
+plot(Showvwap ? wtVwap : na, title='VWAP', color=colorYellow, style=plot.style_area)
+ 
+ 
+zLine = plot(0, color=color.rgb(250, 250, 250, 0), linewidth=1, trackprice=true)
+ 
+// MFI AREA
+rsiMFIplot = plot(rsiMFIShow? rsiMFI : na, title='RSI+MFI Area', style=plot.style_area ,color=rsiMFIColor, trackprice=true, linewidth=2)
+fill(rsiMFIplot, zLine, rsiMFIColor)
+ 
+// RSI
+plot(rsiShow?newRSI:na, title='RSI', color=color.rgb(250, 250, 250, 0), linewidth=1)
+plot(rsiShow?SRSI_k_Fast:na, title='Stoch', color=newStochColor, linewidth=2)
+ 
+ 
+// Draw Overbought & Oversold Guide lines
+plot(levelsGuideShow ? obLevel1 : na, title='Over Bought Level 1', color=colorWhite, linewidth=1, style=plot.style_circles)
+plot(levelsGuideShow ? obLevel2 : na, title='Over Bought Level 2', color=colorWhite, linewidth=2, style=plot.style_line)
+plot(levelsGuideShow ? obLevel3 : na, title='Over Bought Level 3', color=colorWhite, linewidth=1, style=plot.style_circles)
+plot(levelsGuideShow ? osLevel1 : na, title='Over Sold Level 1', color=colorWhite, linewidth=1, style=plot.style_circles)
+plot(levelsGuideShow ? osLevel2 : na, title='Over Sold Level 2', color=colorWhite, linewidth=2, style=plot.style_line)
+ 
+// Circles Showing on WaveTrend etc.
+plot(wtDotsShow and wtCross ? wt2 : na, title='Buy and sell circle', color=signalColor, style=plot.style_circles, linewidth = 3)
+plot(bsDotsShow and buySignal ? -95 : na, title='Buy circle', style=plot.style_circles, color=color.rgb(0, 250, 0, 0),  linewidth = 4)
+plot(bsDotsShow and sellSignal ? 95 : na, title='Sell circle', style=plot.style_circles, color=color.rgb(250, 0, 0, 0),  linewidth = 4)
+
+// NOTE: This is NOT EXACTLY SAME as Market Cipher B by CryptoFace. If you actually wanna use the GENUINE version of it. Please purchase from https://marketciphertrading.com/
